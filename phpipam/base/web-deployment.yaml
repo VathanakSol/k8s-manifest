@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phpipam-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: phpipam-web
+  template:
+    metadata:
+      labels:
+        app: phpipam-web
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: phpipam
+          image: phpipam/phpipam-www:1.9x
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+          envFrom:
+            - configMapRef:
+                name: phpipam-config
+          env:
+            - name: IPAM_DATABASE_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: phpipam-db
+                  key: IPAM_DATABASE_PASS
+            - name: IPAM_DISABLE_INSTALLER # Disable Show Installation Wizard When Access URL
+              value: "1"
+          readinessProbe: 
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10

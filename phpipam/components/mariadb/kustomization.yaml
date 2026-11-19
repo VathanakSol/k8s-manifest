@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - service.yaml
+  - statefulset.yaml
+patches:
+  - target:
+      kind: ConfigMap
+      name: phpipam-config
+    patch: |-
+      - op: replace
+        path: /data/IPAM_DATABASE_HOST
+        value: phpipam-mariadb
+      - op: replace
+        path: /data/IPAM_DATABASE_PORT
+        value: "3306"

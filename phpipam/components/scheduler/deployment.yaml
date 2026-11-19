@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phpipam-scheduler
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: phpipam-scheduler
+  template:
+    metadata:
+      labels:
+        app: phpipam-scheduler
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: scheduler
+          image: phpipam/phpipam-cron:1.9x
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: phpipam-config
+          env:
+            - name: IPAM_DATABASE_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: phpipam-db
+                  key: IPAM_DATABASE_PASS
+            - name: SCAN_INTERVAL
+              value: "1h"

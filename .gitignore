@@ -1,0 +1,30 @@
+# Local Kubernetes access and credential files
+.kube/
+kubeconfig
+kubeconfig.yaml
+kubeconfig.yml
+kubeconfig.local.*
+*.kubeconfig
+*.key
+*.p12
+*.pfx
+
+# Local environment values and private Kubernetes Secret manifests
+.env
+.env.*
+!.env.example
+!.env.sample
+*.secret.yaml
+*.secret.yml
+secret.local.yaml
+secret.local.yml
+
+# Local database dumps, logs, and editor or OS files
+*.dump
+*.sql.gz
+*.log
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
