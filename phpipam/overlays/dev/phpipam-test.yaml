@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phpipam-vpa-test
+  namespace: phpipam
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: phpipam-vpa-test
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: phpipam-vpa-test
+    spec:
+      automountServiceAccountToken: false
+      affinity:
+        podAntiAffinity:
+          # Each test replica needs a separate node.
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: phpipam-vpa-test
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: phpipam
+          image: phpipam/phpipam-www:1.9x
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+          envFrom:
+            - configMapRef:
+                name: phpipam-config
+          env:
+            - name: IPAM_DATABASE_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: phpipam-db
+                  key: IPAM_DATABASE_PASS
+            - name: IPAM_DISABLE_INSTALLER
+              value: "1"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: phpipam-vpa-test
+  namespace: phpipam
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: phpipam-vpa-test
+  updatePolicy:
+    updateMode: Initial
+  resourcePolicy:
+    containerPolicies:
+      - containerName: phpipam
+        controlledResources:
+          - cpu
+        controlledValues: RequestsOnly
+        # Set both bounds to the CPU request chosen for the node scale-up test.
+        minAllowed:
+          cpu: 1500m
+        maxAllowed:
+          cpu: 1500m

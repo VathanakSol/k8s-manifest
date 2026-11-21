@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: phpipam
 resources:
   - ../../base
+  - autoscaling.yaml
 components:
   - ../../components/mariadb
   - ../../components/scheduler
