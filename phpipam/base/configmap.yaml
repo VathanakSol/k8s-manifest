@@ -3,7 +3,8 @@ kind: ConfigMap
 metadata:
   name: phpipam-config
 data:
-  # Replace this with the hostname of your MariaDB server.
+  # External MariaDB/MySQL host. Overridden automatically to the in-cluster
+  # service when the components/mariadb component is enabled.
   IPAM_DATABASE_HOST: "mariadb.example.internal"
   IPAM_DATABASE_PORT: "3306"
   IPAM_DATABASE_NAME: "phpipam"

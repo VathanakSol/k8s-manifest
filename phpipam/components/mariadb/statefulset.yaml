@@ -2,8 +2,12 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: phpipam-mariadb
+  labels:
+    app: phpipam-mariadb
 spec:
   serviceName: phpipam-mariadb-headless
+  # Single instance. Do NOT scale this with HPA: replicas would each get
+  # their own empty volume, not a replicated database.
   replicas: 1
   selector:
     matchLabels:
@@ -14,10 +18,11 @@ spec:
         app: phpipam-mariadb
     spec:
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
       containers:
         - name: mariadb
-          image: mariadb:11.4
-          imagePullPolicy: Always
+          image: mariadb:11.4.13
+          imagePullPolicy: IfNotPresent
           ports:
             - name: mysql
               containerPort: 3306
@@ -44,6 +49,11 @@ spec:
                   key: MARIADB_ROOT_PASSWORD
             - name: MARIADB_ROOT_HOST
               value: localhost
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: phpipam-config
+                  key: TZ
           startupProbe:
             exec:
               command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
@@ -55,13 +65,33 @@ spec:
               command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
             periodSeconds: 10
             timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect"]
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql
+            - name: schema
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: schema
+          configMap:
+            name: phpipam-schema
   volumeClaimTemplates:
     - metadata:
         name: data
       spec:
+        # Change to your cluster's StorageClass if not local-path.
         storageClassName: local-path
         accessModes: ["ReadWriteOnce"]
         resources:

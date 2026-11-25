@@ -1,0 +1,25 @@
+# Dedicated Gateway for phpIPAM. If your cluster already has a shared
+# Gateway, delete this file and point httproute.yaml parentRefs at it.
+#
+# For HTTPS, add a listener like:
+#   - name: https
+#     protocol: HTTPS
+#     port: 443
+#     hostname: ipam.example.com
+#     tls:
+#       certificateRefs:
+#         - name: phpipam-tls
+# and issue phpipam-tls with cert-manager (ClusterIssuer letsencrypt-prod).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: phpipam
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same

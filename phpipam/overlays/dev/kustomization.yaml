@@ -3,7 +3,24 @@ kind: Kustomization
 namespace: phpipam
 resources:
   - ../../base
-  - autoscaling.yaml
 components:
-  - ../../components/mariadb
-  - ../../components/scheduler
+  - ../../components/mariadb       # remove to use an external DB (set IPAM_DATABASE_HOST)
+  - ../../components/scheduler     # periodic subnet scans / discovery
+  - ../../components/autoscaling   # HPA (web, CPU) + VPA (web memory; DB/scheduler recommend-only)
+  # - ../../components/gateway     # expose via Envoy Gateway; set hostname first
+
+# Secrets are generated from local, git-ignored files:
+#   cp secrets/db.env.example           secrets/db.env
+#   cp secrets/mariadb-root.env.example secrets/mariadb-root.env
+# then edit the passwords.
+secretGenerator:
+  - name: phpipam-db
+    envs:
+      - secrets/db.env
+  - name: phpipam-mariadb-root
+    envs:
+      - secrets/mariadb-root.env
+generatorOptions:
+  # Stable names: changing the password here does NOT change it inside an
+  # already-initialised MariaDB, so rolling pods on change is not useful.
+  disableNameSuffixHash: true

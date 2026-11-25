@@ -2,8 +2,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: phpipam-scheduler
+  labels:
+    app: phpipam-scheduler
 spec:
+  # Must stay at exactly 1: multiple cron pods would run duplicate scans.
+  # Not HPA-scaled for that reason.
   replicas: 1
+  revisionHistoryLimit: 3
   strategy:
     type: Recreate
   selector:
@@ -17,8 +22,8 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: scheduler
-          image: phpipam/phpipam-cron:1.9x
-          imagePullPolicy: Always
+          image: phpipam/phpipam-cron:v1.9.1
+          imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: phpipam-config
@@ -30,3 +35,9 @@ spec:
                   key: IPAM_DATABASE_PASS
             - name: SCAN_INTERVAL
               value: "1h"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi

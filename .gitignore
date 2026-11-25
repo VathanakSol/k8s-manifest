@@ -28,3 +28,6 @@ secret.local.yml
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Kustomize secretGenerator inputs (commit only the *.env.example templates)
+phpipam/overlays/*/secrets/*.env

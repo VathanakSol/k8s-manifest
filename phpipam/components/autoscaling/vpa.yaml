@@ -1,0 +1,55 @@
+# Web: VPA manages memory only; CPU is left to the HPA.
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: phpipam-web
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: phpipam-web
+  updatePolicy:
+    # Recreate: evict pods (one at a time, respecting the PDB) to apply new
+    # memory values. On VPA >= 1.4 with K8s >= 1.33 you may use
+    # "InPlaceOrRecreate" to resize without restarting where possible.
+    # Use "Off" to only collect recommendations.
+    updateMode: "Recreate"
+    minReplicas: 2
+  resourcePolicy:
+    containerPolicies:
+      - containerName: phpipam
+        controlledResources: ["memory"]
+        # Keep the limit/request ratio from the Deployment (512Mi/256Mi = 2x).
+        controlledValues: RequestsAndLimits
+        minAllowed:
+          memory: 192Mi
+        maxAllowed:
+          memory: 1Gi
+---
+# MariaDB: recommendations only. Read them with
+#   kubectl -n phpipam describe vpa phpipam-mariadb
+# and adjust components/mariadb/statefulset.yaml by hand.
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: phpipam-mariadb
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: phpipam-mariadb
+  updatePolicy:
+    updateMode: "Off"
+---
+# Scheduler: recommendations only (singleton cron job).
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: phpipam-scheduler
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: phpipam-scheduler
+  updatePolicy:
+    updateMode: "Off"

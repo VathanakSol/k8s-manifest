@@ -1,0 +1,17 @@
+# Optional: expose phpIPAM through Gateway API (Envoy Gateway, class "eg").
+# Set the hostname in httproute.yaml before enabling.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - gateway.yaml
+  - httproute.yaml
+patches:
+  # phpIPAM sits behind Envoy, so trust its X-Forwarded-* headers to build
+  # correct URLs/redirects. Envoy overwrites these headers from clients.
+  - target:
+      kind: ConfigMap
+      name: phpipam-config
+    patch: |-
+      - op: add
+        path: /data/IPAM_TRUST_X_FORWARDED
+        value: "true"

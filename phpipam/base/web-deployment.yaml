@@ -2,21 +2,42 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: phpipam-web
+  labels:
+    app: phpipam-web
 spec:
-  replicas: 1
+  # Used only without the autoscaling component. That component removes this
+  # field so `kubectl apply` never resets the replica count the HPA has set.
+  replicas: 2
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: phpipam-web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:
         app: phpipam-web
     spec:
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      # Spread web replicas across nodes so one node failure does not take
+      # the UI down. ScheduleAnyway keeps it working on small clusters.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: phpipam-web
       containers:
         - name: phpipam
-          image: phpipam/phpipam-www:1.9x
-          imagePullPolicy: Always
+          # Pin an exact release; bump deliberately. (1.9x is a moving tag.)
+          image: phpipam/phpipam-www:v1.9.1
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 80
@@ -29,14 +50,30 @@ spec:
                 secretKeyRef:
                   name: phpipam-db
                   key: IPAM_DATABASE_PASS
-            - name: IPAM_DISABLE_INSTALLER # Disable Show Installation Wizard When Access URL
+            # Hide the installation wizard; the schema is loaded by the
+            # bundled MariaDB (or must be imported into an external DB).
+            - name: IPAM_DISABLE_INSTALLER
               value: "1"
-          readinessProbe: 
+          readinessProbe:
             httpGet:
               path: /
               port: http
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # TCP only: a DB outage should mark pods unready, not restart them.
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 3
+          # HPA scales on CPU utilisation relative to requests.cpu, so the
+          # CPU request must be set. VPA (memory only) adjusts memory
+          # request/limit proportionally. No CPU limit to avoid throttling.
           resources:
             requests:
               cpu: 200m
               memory: 256Mi
+            limits:
+              memory: 512Mi

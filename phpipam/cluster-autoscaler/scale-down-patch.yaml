@@ -1,0 +1,45 @@
+# Cluster Autoscaler scale-down tuning for the CloudStack (CKS) cluster.
+#
+# Goal: when worker nodes become idle, remove them after 5 minutes,
+#       one node at a time (about 5 minutes apart).
+#
+# Apply (idempotent; replaces the whole command list):
+#   kubectl -n kube-system patch deploy cluster-autoscaler --patch-file phpipam/cluster-autoscaler/scale-down-patch.yaml
+#
+# NOTE: CloudStack deploys this Deployment. If autoscaling is changed from the
+# CloudStack UI/API (e.g. min/max size), CloudStack may re-apply its manifest
+# and drop these flags. Re-apply this patch afterwards, and keep --nodes in
+# sync with the CloudStack min:max.
+spec:
+  template:
+    spec:
+      # Run the autoscaler on the control-plane node. If it lands on an
+      # autoscaled worker, that worker can never be removed: kube-system pods
+      # block scale-down by default (--skip-nodes-with-system-pods=true).
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: cluster-autoscaler
+          command:
+            - ./cluster-autoscaler
+            - --v=4
+            - --stderrthreshold=info
+            - --cloud-provider=cloudstack
+            - --cloud-config=/config/cloud-config
+            - --skip-nodes-with-local-storage=false
+            - --nodes=2:4:35907539-a851-4b38-9907-5477146df24a
+            # A node counts as "unneeded" when the CPU and memory REQUESTED by its
+            # pods are below 50% of what it can allocate (the default threshold).
+            - --scale-down-utilization-threshold=0.5
+            # Remove a node after it has been unneeded for 5 minutes (default 10m).
+            - --scale-down-unneeded-time=5m
+            # Start looking for nodes to remove 5 minutes after a scale-up (default 10m).
+            - --scale-down-delay-after-add=5m
+            # One node at a time: delete at most one empty node per round...
+            - --max-empty-bulk-delete=1
+            # ...and wait 5 minutes after each deletion before removing the next.
+            - --scale-down-delay-after-delete=5m

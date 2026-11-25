@@ -3,6 +3,12 @@ kind: Component
 resources:
   - service.yaml
   - statefulset.yaml
+# phpIPAM schema, executed by the MariaDB entrypoint on FIRST start only
+# (empty data volume). Required because the web installer is disabled.
+configMapGenerator:
+  - name: phpipam-schema
+    files:
+      - SCHEMA.sql
 patches:
   - target:
       kind: ConfigMap
