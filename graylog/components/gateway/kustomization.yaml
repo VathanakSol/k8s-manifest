@@ -1,0 +1,17 @@
+# Optional: expose the Graylog web UI through Gateway API (Envoy Gateway,
+# class "eg"). Set the hostname in httproute.yaml AND below before enabling.
+# Log inputs are not HTTP; use components/inputs-loadbalancer for those.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - gateway.yaml
+  - httproute.yaml
+patches:
+  # The UI must know the public URL it is served from, or it loads blank.
+  - target:
+      kind: ConfigMap
+      name: graylog-config
+    patch: |-
+      - op: replace
+        path: /data/GRAYLOG_HTTP_EXTERNAL_URI
+        value: "http://graylog.example.com/" # CHANGE ME (https:// with TLS)

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: graylog-config
+data:
+  # External MongoDB (>= 7.0, required by Graylog 7). Overridden automatically
+  # to the in-cluster service when the components/mongodb component is enabled.
+  # These keys have no GRAYLOG_ prefix on purpose: they only build the MongoDB
+  # URI inside the pods and are not passed to Graylog as settings.
+  MONGODB_HOST: "mongodb.example.internal"
+  MONGODB_PORT: "27017"
+  MONGODB_DATABASE: "graylog"
+  # Database the MongoDB user is defined in. The bundled MongoDB creates the
+  # Graylog user inside the "graylog" database. For an external MongoDB, use
+  # whatever your DBA used (often "admin").
+  MONGODB_AUTH_SOURCE: "graylog"
+
+  # Graylog server settings: any GRAYLOG_<SETTING> env var maps to the
+  # <setting> key of server.conf.
+  GRAYLOG_HTTP_BIND_ADDRESS: "0.0.0.0:9000"
+  # URL the BROWSER uses to reach Graylog. It must match exactly, or the UI
+  # loads blank. The default fits `kubectl port-forward ... 9000:9000`; the
+  # gateway component overrides it.
+  GRAYLOG_HTTP_EXTERNAL_URI: "http://localhost:9000/"
+  GRAYLOG_ROOT_TIMEZONE: "Asia/Bangkok"
+  TZ: "Asia/Bangkok"
+
+  # Only when NOT using components/datanode: point Graylog at your own
+  # OpenSearch cluster instead, e.g.
+  # GRAYLOG_ELASTICSEARCH_HOSTS: "https://user:pass@opensearch.example.internal:9200"

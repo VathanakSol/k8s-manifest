@@ -1,0 +1,27 @@
+# Optional: expose the log inputs (syslog 514 TCP/UDP, GELF 12201 TCP/UDP,
+# Beats 5044) outside the cluster, so routers, switches, firewalls and
+# servers can send logs. On CloudStack (CKS) each Service gets a public IP
+# and load-balancer rules (one IP for TCP, one for UDP).
+#
+# externalTrafficPolicy: Local keeps the sender's real IP, so Graylog shows
+# the correct "source" for syslog messages.
+#
+# Restrict who can connect: set loadBalancerSourceRanges to your networks.
+# Syslog and GELF have no authentication.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+  - target:
+      kind: Service
+      name: graylog-inputs-(tcp|udp)
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: LoadBalancer
+      - op: add
+        path: /spec/externalTrafficPolicy
+        value: Local
+      - op: add
+        path: /spec/loadBalancerSourceRanges
+        value:
+          - 10.0.0.0/8 # CHANGE ME: networks allowed to send logs

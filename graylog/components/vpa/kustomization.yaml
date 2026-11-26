@@ -1,0 +1,12 @@
+# VPA in recommendation-only mode ("Off") for every Graylog workload.
+#
+# No HPA here: the Graylog server, Data Node and MongoDB are all stateful
+# singletons. Extra replicas would not share load without cluster setup, and
+# VPA evictions would interrupt log ingestion. Read the recommendations and
+# set requests/limits by hand (JVM heap with them).
+#
+# Prerequisite: VPA recommender (+ updater/admission-controller) installed.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - vpa.yaml

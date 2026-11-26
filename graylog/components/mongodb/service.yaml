@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: graylog-mongodb-headless
+spec:
+  clusterIP: None
+  selector:
+    app: graylog-mongodb
+  ports:
+    - name: mongodb
+      port: 27017
+      targetPort: mongodb
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graylog-mongodb
+spec:
+  type: ClusterIP
+  selector:
+    app: graylog-mongodb
+  ports:
+    - name: mongodb
+      port: 27017
+      targetPort: mongodb

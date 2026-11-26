@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: graylog-mongodb
+  labels:
+    app: graylog-mongodb
+spec:
+  serviceName: graylog-mongodb-headless
+  # Single instance. Do NOT scale this with HPA: replicas would each get
+  # their own empty volume, not a replica set.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: graylog-mongodb
+  template:
+    metadata:
+      labels:
+        app: graylog-mongodb
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: mongodb
+          # Graylog 7 requires MongoDB >= 7.0. MongoDB 5.0+ also needs a CPU
+          # with AVX: on CloudStack, use a VM CPU model that exposes it.
+          # Pin a patch tag (e.g. 7.0.x) once you have chosen one.
+          image: mongo:7.0
+          imagePullPolicy: IfNotPresent
+          args:
+            # Cap the WiredTiger cache to fit the memory limit below
+            # (the default is 50% of (RAM - 1GB)).
+            - --wiredTigerCacheSizeGB
+            - "0.25"
+          ports:
+            - name: mongodb
+              containerPort: 27017
+          env:
+            # Root (admin) user: created on FIRST start only (empty data
+            # volume). For maintenance only; Graylog never uses it.
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: graylog-mongodb
+                  key: MONGO_INITDB_ROOT_USERNAME
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: graylog-mongodb
+                  key: MONGO_INITDB_ROOT_PASSWORD
+            # Graylog app user, created by create-graylog-user.js on first start.
+            - name: GRAYLOG_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: graylog-config
+                  key: MONGODB_DATABASE
+            - name: GRAYLOG_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: graylog-mongodb
+                  key: MONGODB_USERNAME
+            - name: GRAYLOG_DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: graylog-mongodb
+                  key: MONGODB_PASSWORD
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: graylog-config
+                  key: TZ
+          # "ping" works without authentication.
+          startupProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: init
+          configMap:
+            name: graylog-mongodb-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        # Change to your cluster's StorageClass if not local-path.
+        storageClassName: local-path
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

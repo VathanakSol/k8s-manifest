@@ -1,0 +1,43 @@
+# Server: recommendations only. Read them with
+#   kubectl -n graylog describe vpa graylog
+# and adjust base/server-statefulset.yaml. If you raise memory, also raise
+# the heap (GRAYLOG_SERVER_JAVA_OPTS="-Xms2g -Xmx2g").
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: graylog
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: graylog
+  updatePolicy:
+    updateMode: "Off"
+---
+# Data Node: recommendations only. Adjust components/datanode/statefulset.yaml
+# (and GRAYLOG_DATANODE_OPENSEARCH_HEAP with it).
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: graylog-datanode
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: graylog-datanode
+  updatePolicy:
+    updateMode: "Off"
+---
+# MongoDB: recommendations only. Delete this object if you do not use
+# components/mongodb.
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: graylog-mongodb
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: graylog-mongodb
+  updatePolicy:
+    updateMode: "Off"

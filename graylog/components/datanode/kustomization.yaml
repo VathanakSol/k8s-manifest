@@ -1,0 +1,11 @@
+# Graylog Data Node: a managed OpenSearch where the log messages are stored.
+# The Graylog server finds it through MongoDB and, on first start, issues its
+# TLS certificates in the "preflight" setup UI (see README, Deploy step 5).
+#
+# Remove this component to use your own OpenSearch instead, and set
+# GRAYLOG_ELASTICSEARCH_HOSTS in base/configmap.yaml.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - service.yaml
+  - statefulset.yaml

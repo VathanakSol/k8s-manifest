@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: graylog
+resources:
+  - ../../base
+components:
+  - ../../components/mongodb                # remove to use an external MongoDB >= 7.0 (set MONGODB_HOST)
+  - ../../components/datanode               # remove to use your own OpenSearch (set GRAYLOG_ELASTICSEARCH_HOSTS)
+  - ../../components/vpa                  # VPA recommendations only; install VPA first
+  # - ../../components/gateway              # expose the UI via Envoy Gateway; set hostname first
+  # - ../../components/inputs-loadbalancer  # expose syslog/GELF/Beats to senders outside the cluster
+
+# Secrets are generated from local, git-ignored files:
+#   cp secrets/graylog.env.example secrets/graylog.env
+#   cp secrets/mongodb.env.example secrets/mongodb.env
+# then edit the values (see README, Deploy step 2).
+secretGenerator:
+  - name: graylog           # password_secret + admin password hash
+    envs:
+      - secrets/graylog.env
+  - name: graylog-mongodb   # MongoDB app user + root user
+    envs:
+      - secrets/mongodb.env
+generatorOptions:
+  # Stable names. Changing GRAYLOG_PASSWORD_SECRET after the first start
+  # breaks stored encrypted values, and the MongoDB password is set only on
+  # first init, so rolling pods on change is not useful.
+  disableNameSuffixHash: true

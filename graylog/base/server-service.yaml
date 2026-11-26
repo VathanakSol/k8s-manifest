@@ -1,0 +1,28 @@
+# Web UI + REST API.
+apiVersion: v1
+kind: Service
+metadata:
+  name: graylog-web
+spec:
+  type: ClusterIP
+  selector:
+    app: graylog
+  ports:
+    - name: http
+      port: 9000
+      targetPort: http
+---
+# Stable per-pod DNS name (graylog-0.graylog-headless...) used as publish URI.
+apiVersion: v1
+kind: Service
+metadata:
+  name: graylog-headless
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: graylog
+  ports:
+    - name: http
+      port: 9000
+      targetPort: http

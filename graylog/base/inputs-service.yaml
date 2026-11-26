@@ -1,0 +1,43 @@
+# Log inputs, split by protocol: many cloud load balancers (CloudStack
+# included) do not support TCP and UDP in one LoadBalancer Service.
+# ClusterIP by default (senders inside the cluster only). Enable
+# components/inputs-loadbalancer to receive logs from outside the cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: graylog-inputs-tcp
+spec:
+  type: ClusterIP
+  selector:
+    app: graylog
+  ports:
+    - name: syslog-tcp
+      port: 514
+      targetPort: syslog-tcp
+      protocol: TCP
+    - name: gelf-tcp
+      port: 12201
+      targetPort: gelf-tcp
+      protocol: TCP
+    - name: beats
+      port: 5044
+      targetPort: beats
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graylog-inputs-udp
+spec:
+  type: ClusterIP
+  selector:
+    app: graylog
+  ports:
+    - name: syslog-udp
+      port: 514
+      targetPort: syslog-udp
+      protocol: UDP
+    - name: gelf-udp
+      port: 12201
+      targetPort: gelf-udp
+      protocol: UDP

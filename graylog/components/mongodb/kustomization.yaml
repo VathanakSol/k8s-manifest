@@ -1,0 +1,25 @@
+# In-cluster MongoDB for Graylog's configuration and metadata (users,
+# streams, inputs, dashboards). Log messages themselves live in OpenSearch
+# (Data Node), not here, so this database stays small.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - service.yaml
+  - statefulset.yaml
+# Creates the Graylog app user. Executed by the MongoDB entrypoint on FIRST
+# start only (empty data volume).
+configMapGenerator:
+  - name: graylog-mongodb-init
+    files:
+      - create-graylog-user.js
+patches:
+  - target:
+      kind: ConfigMap
+      name: graylog-config
+    patch: |-
+      - op: replace
+        path: /data/MONGODB_HOST
+        value: graylog-mongodb
+      - op: replace
+        path: /data/MONGODB_PORT
+        value: "27017"

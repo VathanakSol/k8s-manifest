@@ -1,0 +1,24 @@
+# Headless only: the Data Node registers its own hostname
+# (graylog-datanode-0.graylog-datanode-headless...) in MongoDB, and Graylog
+# connects to that name. publishNotReadyAddresses lets the name resolve
+# before the node is ready, which it is not until preflight has provisioned
+# its certificates.
+apiVersion: v1
+kind: Service
+metadata:
+  name: graylog-datanode-headless
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: graylog-datanode
+  ports:
+    - name: api
+      port: 8999
+      targetPort: api
+    - name: opensearch
+      port: 9200
+      targetPort: opensearch
+    - name: transport
+      port: 9300
+      targetPort: transport
