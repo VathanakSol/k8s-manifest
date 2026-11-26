@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zabbix-server
+  labels:
+    app: zabbix-server
+spec:
+  # Must stay at exactly 1. Two plain Zabbix servers on one database would
+  # both poll and write duplicate data. (Zabbix native HA, with ZBX_HANODENAME
+  # per node, is the only supported way to run more than one.)
+  # Not HPA-scaled for that reason.
+  replicas: 1
+  revisionHistoryLimit: 3
+  # Recreate: never run the old and new server at the same time.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: zabbix-server
+  template:
+    metadata:
+      labels:
+        app: zabbix-server
+    spec:
+      automountServiceAccountToken: false
+      # Lets the server flush its history cache to the DB before exit.
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: zabbix-server
+          # Zabbix 7.0 LTS. Pin an exact release; bump deliberately.
+          image: zabbix/zabbix-server-mysql:alpine-7.0.32
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: trapper
+              containerPort: 10051
+          envFrom:
+            - configMapRef:
+                name: zabbix-config
+            - configMapRef:
+                name: zabbix-server-config
+          env:
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zabbix-db
+                  key: MYSQL_PASSWORD
+          # On first start the entrypoint imports the Zabbix schema into the
+          # empty database. This takes a few minutes; allow up to 10 min.
+          startupProbe:
+            tcpSocket:
+              port: trapper
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: trapper
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: trapper
+            periodSeconds: 20
+            failureThreshold: 3
+          # Memory must cover the caches in zabbix-server-config plus the
+          # poller processes. No CPU limit to avoid throttling.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi

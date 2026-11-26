@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zabbix-mariadb
+  labels:
+    app: zabbix-mariadb
+spec:
+  serviceName: zabbix-mariadb-headless
+  # Single instance. Do NOT scale this with HPA: replicas would each get
+  # their own empty volume, not a replicated database.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zabbix-mariadb
+  template:
+    metadata:
+      labels:
+        app: zabbix-mariadb
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: mariadb
+          image: mariadb:11.4.13
+          imagePullPolicy: IfNotPresent
+          # Zabbix requires utf8mb4 with the binary collation; the database
+          # is created with these defaults on first init.
+          args:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_bin
+            # Zabbix is write-heavy (history/trends). Keep the buffer pool at
+            # roughly half of the container memory limit.
+            - --innodb-buffer-pool-size=768M
+            - --innodb-log-file-size=256M
+            - --max-connections=300
+          ports:
+            - name: mysql
+              containerPort: 3306
+          env:
+            - name: MARIADB_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: zabbix-config
+                  key: MYSQL_DATABASE
+            - name: MARIADB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: zabbix-config
+                  key: MYSQL_USER
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zabbix-db
+                  key: MYSQL_PASSWORD
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zabbix-mariadb-root
+                  key: MARIADB_ROOT_PASSWORD
+            - name: MARIADB_ROOT_HOST
+              value: localhost
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: zabbix-config
+                  key: TZ
+          startupProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect"]
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        # Change to your cluster's StorageClass if not local-path.
+        storageClassName: local-path
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            # History and trends grow with hosts x items x retention.
+            storage: 30Gi

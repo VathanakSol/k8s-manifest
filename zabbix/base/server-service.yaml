@@ -1,0 +1,15 @@
+# Port 10051: active agents/proxies send data here, and the web UI talks to
+# the server through it. ClusterIP = reachable inside the cluster only; enable
+# components/server-loadbalancer for agents and proxies outside the cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: zabbix-server
+spec:
+  type: ClusterIP
+  selector:
+    app: zabbix-server
+  ports:
+    - name: trapper
+      port: 10051
+      targetPort: trapper

@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oxidized
+  labels:
+    app: oxidized
+spec:
+  # Singleton. Two replicas would back up every device twice and fight over
+  # the git repo; the RWO volume cannot be shared anyway. No HPA.
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: oxidized
+  # Recreate, not RollingUpdate: the new pod cannot mount the RWO volume
+  # while the old one still holds it.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: oxidized
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      # The image starts as root (runit + dumb-init), chowns the data dir and
+      # then drops to user "oxidized" (UID 30000) with gosu, so runAsNonRoot
+      # cannot be set here.
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oxidized
+          # Pin an exact release; bump deliberately ("latest" moves).
+          image: oxidized/oxidized:0.38.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8888
+          env:
+            # Read config + router.db from the read-only projected volume.
+            - name: OXIDIZED_HOME
+              value: /etc/oxidized
+            # Logs/crash files go to the writable volume.
+            - name: OXIDIZED_LOGS
+              value: /home/oxidized/.config/oxidized
+            # Re-read router.db every 5 min (calls /reload on the web API).
+            # A Secret update reaches the mounted file in ~1 min, so device
+            # changes apply without restarting the pod.
+            - name: CONFIG_RELOAD_INTERVAL
+              value: "300"
+            - name: TZ
+              value: Asia/Bangkok
+          # Oxidized loads all nodes before the web UI listens: allow time.
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Memory grows with threads and device count. No CPU limit, to
+          # avoid throttling SSH sessions during a backup run.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+          volumeMounts:
+            - name: etc
+              mountPath: /etc/oxidized
+              readOnly: true
+            - name: data
+              mountPath: /home/oxidized/.config/oxidized
+      volumes:
+        # Not subPath mounts: those never receive ConfigMap/Secret updates.
+        - name: etc
+          projected:
+            sources:
+              - configMap:
+                  name: oxidized-config
+                  items:
+                    - key: config
+                      path: config
+              - secret:
+                  name: oxidized-router-db
+                  items:
+                    - key: router.db
+                      path: router.db
+        - name: data
+          persistentVolumeClaim:
+            claimName: oxidized-data

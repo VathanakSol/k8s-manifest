@@ -1,0 +1,61 @@
+# Cluster Autoscaler tuning for the CloudStack (CKS) cluster that runs Oxidized.
+#
+# Goal: add a worker when pods are Pending; when an ADDED worker becomes idle,
+#       remove it after 5 minutes, one node at a time (about 5 minutes apart).
+#       Never remove the 2 original workers.
+#
+# Prerequisites (both met as of 2026-11-26; the autoscaler is running):
+#   1. The nodes can reach the CloudStack API from cloudstack-secret
+#      (10.1.41.32:8080). Check:
+#        kubectl run cs-api-check --rm -it --restart=Never --image=busybox:1.36 -- nc -zv -w 5 10.1.41.32 8080
+#   2. Auto Scaling is enabled in KCloud (min 2, max 4), so the
+#      cluster-autoscaler Deployment exists in kube-system. Check:
+#        kubectl -n kube-system get deploy cluster-autoscaler
+#
+# Apply from the repository root (idempotent; replaces the whole command list):
+#   kubectl -n kube-system patch deploy cluster-autoscaler --patch-file oxidized/cluster-autoscaler/scale-down-patch.yaml
+#
+# NOTE: KCloud/CloudStack deploys this Deployment. If autoscaling is changed in
+# KCloud (e.g. min/max size), it may re-apply its manifest and drop these
+# flags. Re-apply this patch afterwards, and keep --nodes in sync with the
+# KCloud min:max.
+spec:
+  template:
+    spec:
+      # Run the autoscaler on the control-plane node. If it lands on an
+      # autoscaled worker, that worker can never be removed: kube-system pods
+      # block scale-down by default (--skip-nodes-with-system-pods=true).
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: cluster-autoscaler
+          command:
+            - ./cluster-autoscaler
+            - --v=4
+            - --stderrthreshold=info
+            - --cloud-provider=cloudstack
+            - --cloud-config=/config/cloud-config
+            - --skip-nodes-with-local-storage=false
+            # min:max:<CKS cluster id> (cluster k8s-hpa-poc, verified 2026-11-26
+            #   in the autoscaler log "Got cluster : &{35907539-... k8s-hpa-poc").
+            # min = 2: the 2 original workers (created 2026-10-28). Only
+            #   workers the autoscaler added may be removed. A worker whose pods
+            #   use a local-path PVC is not removed either: the pod cannot be
+            #   rescheduled elsewhere, so the autoscaler marks the node unremovable.
+            # max = 4: up to two extra workers. Raise when needed.
+            - --nodes=2:4:35907539-a851-4b38-9907-5477146df24a
+            # A node counts as "unneeded" when the CPU and memory REQUESTED by its
+            # pods are below 50% of what it can allocate (the default threshold).
+            - --scale-down-utilization-threshold=0.5
+            # Remove a node after it has been unneeded for 5 minutes (default 10m).
+            - --scale-down-unneeded-time=5m
+            # Start looking for nodes to remove 5 minutes after a scale-up (default 10m).
+            - --scale-down-delay-after-add=5m
+            # One node at a time: delete at most one empty node per round...
+            - --max-empty-bulk-delete=1
+            # ...and wait 5 minutes after each deletion before removing the next.
+            - --scale-down-delay-after-delete=5m

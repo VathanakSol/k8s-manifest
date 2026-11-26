@@ -1,0 +1,13 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: oxidized
+spec:
+  parentRefs:
+    - name: oxidized
+  hostnames:
+    - oxidized.example.com # CHANGE ME
+  rules:
+    - backendRefs:
+        - name: oxidized
+          port: 8888

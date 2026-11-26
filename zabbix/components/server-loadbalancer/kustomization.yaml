@@ -1,0 +1,25 @@
+# Optional: expose zabbix-server:10051 outside the cluster so agents and
+# proxies running on other machines (VMs, network sites) can send active
+# checks / proxy data. On CloudStack (CKS) this provisions a public IP and
+# load-balancer rule.
+#
+# Restrict who can connect: set loadBalancerSourceRanges to your networks.
+# Also use PSK or certificate encryption on agents that cross untrusted
+# networks.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+  - target:
+      kind: Service
+      name: zabbix-server
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: LoadBalancer
+      - op: add
+        path: /spec/externalTrafficPolicy
+        value: Local
+      - op: add
+        path: /spec/loadBalancerSourceRanges
+        value:
+          - 10.0.0.0/8 # CHANGE ME: networks allowed to reach port 10051

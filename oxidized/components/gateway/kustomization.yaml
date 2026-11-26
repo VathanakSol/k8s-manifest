@@ -1,0 +1,14 @@
+# Optional: expose the Oxidized web UI through Gateway API (Envoy Gateway,
+# class "eg"), protected by HTTP basic auth.
+#
+# oxidized-web has no login of its own and shows full device configs, so
+# this component ALWAYS adds basic auth. Before enabling:
+#   1. set the hostname in httproute.yaml
+#   2. create secrets/htpasswd in the overlay and uncomment its
+#      secretGenerator entry (see overlays/dev/kustomization.yaml)
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - gateway.yaml
+  - httproute.yaml
+  - securitypolicy.yaml

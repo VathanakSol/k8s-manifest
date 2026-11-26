@@ -1,0 +1,12 @@
+# Limits voluntary disruptions (node drain, cluster-autoscaler scale-down,
+# VPA evictions) to one web pod at a time. maxUnavailable (not minAvailable)
+# so a single-replica deployment can still be drained.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: zabbix-web
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: zabbix-web

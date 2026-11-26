@@ -1,0 +1,21 @@
+# HPA for zabbix-web (scales replicas on CPU utilisation).
+#
+# Prerequisite: metrics-server. Without it the HPA shows "cpu: <unknown>"
+# and never scales (the Deployment stays at its current replica count).
+#
+# Memory right-sizing (VPA) is a separate component, components/vpa, because
+# it needs the VPA CRDs + controllers installed in the cluster.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - hpa.yaml
+patches:
+  # Let the HPA own the replica count. If spec.replicas stayed in the
+  # manifest, every `kubectl apply` would reset the web pods to that number
+  # (e.g. 5 -> 2 under load) until the HPA scaled them up again.
+  - target:
+      kind: Deployment
+      name: zabbix-web
+    patch: |-
+      - op: remove
+        path: /spec/replicas

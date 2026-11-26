@@ -1,0 +1,13 @@
+# Holds the git repository of device configs, pid and crash files.
+# Lose this and you lose the configuration history.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oxidized-data
+spec:
+  # Change to your cluster's StorageClass if not local-path.
+  storageClassName: local-path
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi

@@ -1,0 +1,57 @@
+# Web: VPA manages memory only; CPU is left to the HPA.
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: zabbix-web
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: zabbix-web
+  updatePolicy:
+    # Recreate: evict pods (one at a time, respecting the PDB) to apply new
+    # memory values. On VPA >= 1.4 with K8s >= 1.33 you may use
+    # "InPlaceOrRecreate" to resize without restarting where possible.
+    # Use "Off" to only collect recommendations.
+    updateMode: "Recreate"
+    minReplicas: 2
+  resourcePolicy:
+    containerPolicies:
+      - containerName: zabbix-web
+        controlledResources: ["memory"]
+        # Keep the limit/request ratio from the Deployment (512Mi/256Mi = 2x).
+        controlledValues: RequestsAndLimits
+        minAllowed:
+          memory: 192Mi
+        maxAllowed:
+          memory: 1Gi
+---
+# Server: recommendations only. It is a singleton, so an eviction means a
+# monitoring gap. Read them with
+#   kubectl -n zabbix describe vpa zabbix-server
+# and adjust base/server-deployment.yaml (and the cache sizes) by hand.
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: zabbix-server
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: zabbix-server
+  updatePolicy:
+    updateMode: "Off"
+---
+# MariaDB: recommendations only. Adjust components/mariadb/statefulset.yaml
+# by hand (and innodb-buffer-pool-size with it).
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: zabbix-mariadb
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: zabbix-mariadb
+  updatePolicy:
+    updateMode: "Off"

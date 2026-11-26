@@ -1,0 +1,9 @@
+# Optional: expose the Zabbix web UI through Gateway API (Envoy Gateway,
+# class "eg"). Set the hostname in httproute.yaml before enabling.
+# This exposes only the UI (HTTP). Agent traffic on 10051 is TCP; use the
+# server-loadbalancer component for that.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - gateway.yaml
+  - httproute.yaml

@@ -31,3 +31,10 @@ Desktop.ini
 
 # Kustomize secretGenerator inputs (commit only the *.env.example templates)
 phpipam/overlays/*/secrets/*.env
+zabbix/overlays/*/secrets/*.env
+graylog/overlays/*/secrets/*.env
+oxidized/overlays/*/secrets/*
+!oxidized/overlays/*/secrets/*.example
+
+# Local clones of upstream repos (e.g. kubernetes/autoscaler for VPA install)
+autoscaler/

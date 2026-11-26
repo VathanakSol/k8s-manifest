@@ -1,0 +1,26 @@
+# Dedicated Gateway for Oxidized. If your cluster already has a shared
+# Gateway, delete this file and point httproute.yaml parentRefs at it.
+#
+# Basic auth sends the password with every request: use HTTPS outside a
+# trusted network. Add a listener like:
+#   - name: https
+#     protocol: HTTPS
+#     port: 443
+#     hostname: oxidized.example.com
+#     tls:
+#       certificateRefs:
+#         - name: oxidized-tls
+# and issue oxidized-tls with cert-manager (ClusterIssuer letsencrypt-prod).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: oxidized
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same

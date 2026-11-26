@@ -1,0 +1,11 @@
+# VPA for Oxidized, recommendations only.
+#
+# No HPA: Oxidized is a singleton (one scheduler, one git repo, RWO volume).
+# No automatic VPA updates: evicting the only pod interrupts backups and the
+# UI. Read the recommendation and adjust base/deployment.yaml by hand.
+#
+# Prerequisite: VPA recommender (+ updater/admission-controller) in the cluster.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - vpa.yaml

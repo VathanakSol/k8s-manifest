@@ -1,0 +1,18 @@
+# VPA for Zabbix. Enable only after the VPA is installed in the cluster,
+# otherwise `kubectl apply` fails with:
+#   no matches for kind "VerticalPodAutoscaler" in version "autoscaling.k8s.io/v1"
+#
+# Division of responsibility (avoids the classic HPA/VPA fight on CPU):
+#   - HPA  -> scales zabbix-web replicas on CPU (components/autoscaling).
+#   - VPA  -> right-sizes zabbix-web MEMORY only (never CPU).
+#   - VPA  -> recommendation-only ("Off") for zabbix-server and MariaDB:
+#             both are singletons, automatic eviction would cause downtime.
+#
+# Prerequisites: VPA recommender, updater and admission-controller
+# (CRDs alone do nothing). Check:
+#   kubectl get crd verticalpodautoscalers.autoscaling.k8s.io
+#   kubectl -n kube-system get pods | grep vpa
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - vpa.yaml

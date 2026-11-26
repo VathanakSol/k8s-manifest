@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: oxidized
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: oxidized
+    includeSelectors: false
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+# Oxidized reads its config only at start-up. The name gets a content hash,
+# so editing config.yaml changes the Deployment and restarts the pod.
+configMapGenerator:
+  - name: oxidized-config
+    files:
+      - config=config.yaml

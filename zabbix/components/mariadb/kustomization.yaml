@@ -1,0 +1,19 @@
+# In-cluster MariaDB for Zabbix.
+# No schema file is needed: on first start the zabbix-server entrypoint sees
+# an empty database and imports the Zabbix schema and default data itself.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - service.yaml
+  - statefulset.yaml
+patches:
+  - target:
+      kind: ConfigMap
+      name: zabbix-config
+    patch: |-
+      - op: replace
+        path: /data/DB_SERVER_HOST
+        value: zabbix-mariadb
+      - op: replace
+        path: /data/DB_SERVER_PORT
+        value: "3306"

@@ -1,0 +1,16 @@
+# Envoy Gateway basic auth in front of the route. The Secret must hold an
+# htpasswd file under the key ".htpasswd", SHA hashes only:
+#   htpasswd -nbs admin 'your-password' > secrets/htpasswd
+# If the Secret is missing, Envoy rejects requests (fails closed).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: oxidized-basic-auth
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: oxidized
+  basicAuth:
+    users:
+      name: oxidized-basic-auth

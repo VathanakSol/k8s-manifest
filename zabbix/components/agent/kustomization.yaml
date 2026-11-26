@@ -1,0 +1,5 @@
+# Optional: Zabbix agent 2 DaemonSet to monitor the Kubernetes nodes.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - daemonset.yaml

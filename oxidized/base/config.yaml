@@ -1,0 +1,69 @@
+# Oxidized main configuration (mounted read-only at $OXIDIZED_HOME/config).
+# Device list and credentials are NOT here: they come from router.db, which
+# the overlay generates as a Secret from a git-ignored file.
+---
+model: ios                 # fallback when a router.db line has no model
+resolve_dns: false         # router.db carries the IP; skip DNS lookups
+interval: 3600             # back up each device every hour
+threads: 30
+timeout: 20
+retries: 3
+debug: false
+use_syslog: false
+next_adds_job: false
+vars: {}
+groups: {}
+models: {}
+
+# Writable state lives on the PVC (/home/oxidized/.config/oxidized).
+# $OXIDIZED_HOME (/etc/oxidized) is read-only.
+pid: /home/oxidized/.config/oxidized/pid
+crash:
+  directory: /home/oxidized/.config/oxidized/crashes
+  hostnames: false
+stats:
+  history_size: 10
+
+# Web UI + REST API. Must listen on 0.0.0.0 to be reachable through the
+# Service. oxidized-web has NO authentication of its own: never expose it
+# without the gateway component's basic auth (or another auth layer).
+extensions:
+  oxidized-web:
+    load: true
+    listen: 0.0.0.0
+    port: 8888
+
+input:
+  default: ssh, telnet
+  debug: false
+  ssh:
+    secure: false          # true = reject changed SSH host keys
+
+# Every config change becomes a git commit, so the UI shows diffs/history.
+output:
+  default: git
+  git:
+    user: Oxidized
+    email: oxidized@example.com   # CHANGE ME (commit author only)
+    repo: /home/oxidized/.config/oxidized/configs.git
+
+# router.db format (one device per line, ":" separated):
+#   name:ip:model:username:password:enable
+source:
+  default: csv
+  csv:
+    file: /etc/oxidized/router.db
+    delimiter: !ruby/regexp /:/
+    map:
+      name: 0
+      ip: 1
+      model: 2
+      username: 3
+      password: 4
+    vars_map:
+      enable: 5
+    gpg: false
+
+model_map:
+  juniper: junos
+  cisco: ios

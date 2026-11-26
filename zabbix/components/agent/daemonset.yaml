@@ -1,0 +1,64 @@
+# Zabbix agent 2 on every Kubernetes node (including the control plane).
+#
+# Active-only mode: the agent connects OUT to zabbix-server:10051 and never
+# listens for the server. That avoids having to allow the pod CIDR in the
+# agent's "Server=" list and works regardless of the CNI.
+#
+# Hosts are created automatically by an autoregistration action on the
+# server matching HostMetadata "k8s-node" (see README, "Monitor the nodes").
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: zabbix-agent
+  labels:
+    app: zabbix-agent
+spec:
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: zabbix-agent
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: zabbix-agent
+    spec:
+      automountServiceAccountToken: false
+      # Host network and PID namespace so CPU, memory, network interfaces and
+      # processes are the NODE's, not the container's.
+      hostNetwork: true
+      hostPID: true
+      # Keep cluster DNS (zabbix-server.zabbix.svc) working with hostNetwork.
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: zabbix-agent
+          # Keep the same major/minor as zabbix-server.
+          image: zabbix/zabbix-agent2:alpine-7.0.32
+          imagePullPolicy: IfNotPresent
+          env:
+            # The Zabbix host name = the Kubernetes node name.
+            - name: ZBX_HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: ZBX_SERVER_ACTIVE
+              value: "zabbix-server.zabbix.svc.cluster.local:10051"
+            - name: ZBX_PASSIVE_ALLOW
+              value: "false"
+            - name: ZBX_ACTIVE_ALLOW
+              value: "true"
+            - name: ZBX_METADATA
+              value: "k8s-node"
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 128Mi

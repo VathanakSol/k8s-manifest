@@ -1,0 +1,99 @@
+# Manual VPA + cluster autoscaler test. NOT part of the overlay.
+#
+# Scenario: too many pods for the existing workers -> some stay Pending ->
+# the cluster autoscaler adds a worker -> every pod ends up Running.
+#
+#   1. 4 pods start at 100m CPU, so they all fit on the 2 existing workers.
+#   2. The VPA recommends 500m (pinned by minAllowed = maxAllowed).
+#   3. The updater evicts the pods a few at a time; the admission controller
+#      recreates them with 500m.
+#   4. Only 2 x 500m fit on the existing workers -> 2 pods stay Pending
+#      ("Insufficient cpu").
+#   5. The cluster autoscaler sees the Pending pods, asks CloudStack for a new
+#      worker (~3-5 min for the VM to boot and join), and the 2 pods schedule there.
+#   6. Delete the test -> the new worker is idle -> removed after ~5 min
+#      (--scale-down-unneeded-time=5m).
+#
+# Uses "pause" pods, never the real oxidized Deployment: Oxidized is a
+# singleton (VPA "Off"), and a second Oxidized pod would back up every device
+# twice.
+#
+# Sizing (2 original 2-CPU workers, free CPU measured 2026-11-26 with the test
+# removed and oxidized running on one of them):
+#   worker bf60e1 ~1000-1100m -> 2 pods | worker bfb38d ~20-120m -> 0 pods
+#   new worker 2000m - calico 250m = ~1750m -> 3 pods
+#   4 replicas -> 2 Running + 2 Pending -> ONE new worker (room for 1 more pod).
+#   5 replicas fills that worker exactly; 6-8 replicas -> TWO new workers
+#   (--nodes=2:4 allows up to 4 workers); more than 8 stays Pending forever.
+#   Re-check before running, since free CPU changes as apps are deployed:
+#     kubectl describe nodes | grep -A6 "Allocated resources" | grep cpu
+#
+# Start from 2 workers. If a worker added by an earlier test is still there,
+# empty it (delete this test; move anything pinned to it by a local-path PVC)
+# and the autoscaler removes it after ~5 min.
+#
+# Run (from the repository root):
+#   kubectl apply -f oxidized/tests/vpa-node-scaleup.yaml
+#   kubectl -n oxidized get vpa oxidized-vpa-test                 # PROVIDED True, CPU 500m
+#   kubectl -n oxidized get pods -l app=oxidized-vpa-test -o wide -w
+#   kubectl get nodes -w                                          # a 4th worker joins
+#   kubectl -n oxidized get events --field-selector reason=TriggeredScaleUp
+#   kubectl -n kube-system logs deploy/cluster-autoscaler -f | grep -iE "scale-up|Pending|unneeded"
+# Clean up (then watch the added worker go away after ~5 min):
+#   kubectl delete -f oxidized/tests/vpa-node-scaleup.yaml
+#   kubectl get nodes -w
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oxidized-vpa-test
+  namespace: oxidized
+spec:
+  # 4 = 2 that fit on the existing workers + 2 Pending -> one new worker.
+  # Must stay >= 2: the VPA updater does not evict pods of smaller workloads.
+  replicas: 8
+  selector:
+    matchLabels:
+      app: oxidized-vpa-test
+  template:
+    metadata:
+      labels:
+        app: oxidized-vpa-test
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 0
+      containers:
+        - name: test
+          image: registry.k8s.io/pause:3.10
+          resources:
+            # Small on purpose, so all pods start Running. The VPA replaces it with 500m.
+            requests:
+              cpu: 100m
+              memory: 16Mi
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: oxidized-vpa-test
+  namespace: oxidized
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: oxidized-vpa-test
+  updatePolicy:
+    # Recreate: the updater evicts running pods whose requests differ from
+    # the recommendation; the admission controller sets the new value on the
+    # replacement pod. No manual rollout restart needed.
+    # The updater keeps at least half the replicas running while it evicts, so
+    # it finishes converting all pods even while 2 of them are Pending.
+    updateMode: Recreate
+  resourcePolicy:
+    containerPolicies:
+      - containerName: test
+        controlledResources: ["cpu"]
+        controlledValues: RequestsOnly
+        # min = max pins the recommendation to the test value.
+        minAllowed:
+          cpu: 500m
+        maxAllowed:
+          cpu: 500m

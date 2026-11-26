@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: oxidized
+resources:
+  - ../../base
+components:
+  - ../../components/autoscaling # VPA, recommendations only; needs VPA installed in the cluster (see README)
+  # - ../../components/gateway     # expose via Envoy Gateway + basic auth; set hostname first
+
+# Secrets are generated from local, git-ignored files:
+#   cp secrets/router.db.example secrets/router.db
+# then add your devices and credentials.
+secretGenerator:
+  - name: oxidized-router-db
+    files:
+      - router.db=secrets/router.db
+  # Needed only with the gateway component:
+  #   htpasswd -nbs admin 'your-password' > secrets/htpasswd
+  # - name: oxidized-basic-auth
+  #   files:
+  #     - .htpasswd=secrets/htpasswd
+generatorOptions:
+  # Stable names: the router.db file inside the running pod is updated in
+  # place, and CONFIG_RELOAD_INTERVAL reloads it without a restart.
+  disableNameSuffixHash: true

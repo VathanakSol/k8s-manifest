@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: zabbix
+resources:
+  - ../../base
+components:
+  - ../../components/mariadb               # remove to use an external DB (set DB_SERVER_HOST)
+  - ../../components/autoscaling           # HPA (web, CPU); needs metrics-server to actually scale
+  - ../../components/agent                 # agent2 DaemonSet: monitor the K8s nodes
+  - ../../components/vpa                 # VPA (web memory; server/DB recommend-only); install VPA first
+  # - ../../components/gateway             # expose the UI via Envoy Gateway; set hostname first
+  # - ../../components/server-loadbalancer # expose 10051 to agents outside the cluster
+
+# Secrets are generated from local, git-ignored files:
+#   cp secrets/db.env.example           secrets/db.env
+#   cp secrets/mariadb-root.env.example secrets/mariadb-root.env
+# then edit the passwords.
+secretGenerator:
+  - name: zabbix-db
+    envs:
+      - secrets/db.env
+  - name: zabbix-mariadb-root
+    envs:
+      - secrets/mariadb-root.env
+generatorOptions:
+  # Stable names: changing the password here does NOT change it inside an
+  # already-initialised MariaDB, so rolling pods on change is not useful.
+  disableNameSuffixHash: true
